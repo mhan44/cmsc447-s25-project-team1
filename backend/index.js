@@ -1,3 +1,5 @@
+// backend/index.js
+
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -31,13 +33,16 @@ app.use("/api/auth", authRoutes);
     await db.run(`DROP TABLE IF EXISTS admin_account`);
     await db.run(`DROP TABLE IF EXISTS availability`);
 
-    // Recreate student_account with optional profile fields
+    // Recreate student_account with separate first/last names
     await db.run(`
       CREATE TABLE student_account (
         student_id     INTEGER PRIMARY KEY AUTOINCREMENT,
-        name           TEXT,
+        first_name     TEXT,
+        last_name      TEXT,
         phone_number   TEXT,
         age            INTEGER,
+        address        TEXT,
+        zip_code       TEXT,
         email          TEXT    UNIQUE NOT NULL,
         password       TEXT    NOT NULL,
         email_verified INTEGER DEFAULT 0,
@@ -45,13 +50,16 @@ app.use("/api/auth", authRoutes);
       )
     `);
 
-    // Recreate parent_account with optional profile fields
+    // Recreate parent_account with separate first/last names
     await db.run(`
       CREATE TABLE parent_account (
         parent_id      INTEGER PRIMARY KEY AUTOINCREMENT,
-        name           TEXT,
+        first_name     TEXT,
+        last_name      TEXT,
         phone_number   TEXT,
         age            INTEGER,
+        address        TEXT,
+        zip_code       TEXT,
         email          TEXT    UNIQUE NOT NULL,
         password       TEXT    NOT NULL,
         email_verified INTEGER DEFAULT 0,
@@ -61,13 +69,16 @@ app.use("/api/auth", authRoutes);
       )
     `);
 
-    // Recreate therapist_account with optional profile fields
+    // Recreate therapist_account with separate first/last names
     await db.run(`
       CREATE TABLE therapist_account (
         therapist_id   INTEGER PRIMARY KEY AUTOINCREMENT,
-        name           TEXT,
+        first_name     TEXT,
+        last_name      TEXT,
         phone_number   TEXT,
         age            INTEGER,
+        address        TEXT,
+        zip_code       TEXT,
         email          TEXT    UNIQUE NOT NULL,
         password       TEXT    NOT NULL,
         email_verified INTEGER DEFAULT 0,
@@ -95,6 +106,7 @@ app.use("/api/auth", authRoutes);
         FOREIGN KEY(therapist_id) REFERENCES therapist_account(therapist_id)
       )
     `);
+
     await db.run(`
       CREATE TABLE admin_account (
         admin_id   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,6 +116,7 @@ app.use("/api/auth", authRoutes);
         role       TEXT    NOT NULL
       )
     `);
+
     await db.run(`
       CREATE TABLE availability (
         therapist_id INTEGER NOT NULL,

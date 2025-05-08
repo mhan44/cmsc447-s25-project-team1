@@ -6,6 +6,7 @@ import StudentsPage from './pages/StudentPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import CompleteProfilePage from './pages/CompleteProfilePage';
 import StudentPage from './pages/StudentPage';
 import ParentPage from './pages/ParentPage';
 import TherapistPage from './pages/TherapistPage';
@@ -15,10 +16,8 @@ function App() {
   const [userType, setUserType] = useState("");
 
   useEffect(() => {
-    const status = localStorage.getItem("isLoggedIn") === "true";
-    setIsLoggedIn(status);
-    const type = localStorage.getItem("userType") || "";
-    setUserType(type);
+    setIsLoggedIn(localStorage.getItem("isLoggedIn") === "true");
+    setUserType(localStorage.getItem("userType") || "");
   }, []);
 
   return (
@@ -33,6 +32,7 @@ function App() {
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/complete-profile" element={<CompleteProfilePage />} />
         <Route path="/student" element={<StudentPage />} />
         <Route path="/parent" element={<ParentPage />} />
         <Route path="/therapist" element={<TherapistPage />} />

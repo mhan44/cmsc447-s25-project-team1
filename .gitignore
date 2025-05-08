@@ -24,6 +24,7 @@ yarn-error.log*
 #  Environment secrets
 ########################################################################
 .env*
+.env
 !.env.example          # keep a redacted template if you have one
 
 ########################################################################
