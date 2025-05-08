@@ -8,7 +8,6 @@ import RegisterPage from './pages/RegisterPage';
 import StudentPage from './pages/StudentPage';
 import ParentPage from './pages/ParentPage';
 import TherapistPage from './pages/TherapistPage';
-import './styles/App.css';
 
 function App() {
   return (
