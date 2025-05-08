@@ -1,0 +1,76 @@
+########################################################################
+#  macOS cruft
+########################################################################
+.DS_Store
+
+########################################################################
+#  Node / npm / Yarn / pnpm
+########################################################################
+# dependency trees – always rebuild, never commit
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# lockfiles from alternative package managers
+pnpm-lock.yaml
+yarn.lock
+
+# diagnostic logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+########################################################################
+#  Environment secrets
+########################################################################
+.env*
+!.env.example          # keep a redacted template if you have one
+
+########################################################################
+#  Editor / IDE metadata
+########################################################################
+.vscode/
+.idea/
+*.swp
+*~
+
+########################################################################
+#  Build artifacts & generated assets
+########################################################################
+# React production bundle
+frontend/build/
+
+# (if you later transpile or bundle the backend)
+backend/dist/
+
+# coverage reports, docs generators, etc.
+coverage/
+docs/
+
+########################################################################
+#  Databases & runtime state
+########################################################################
+# SQLite or other local DB files
+backend/*.sqlite
+
+# pid / lock / socket files
+*.pid
+*.seed
+*.pid.lock
+
+########################################################################
+#  Miscellaneous – you usually don’t want these in Git
+########################################################################
+# OS or FS–specific trash
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# image‑cache junk
+*.orig
+*.tmp
+
+# log output your app may create
+logs/
+*.log
