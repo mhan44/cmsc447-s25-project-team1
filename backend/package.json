@@ -10,11 +10,13 @@
     "author": "",
     "license": "",
     "dependencies": {
+        "@sendgrid/mail": "^8.1.5",
         "cors": "^2.8.5",
         "dotenv": "^16.5.0",
         "express": "^4.21.2",
         "mysql2": "^3.2.0",
         "sqlite": "^5.1.1",
-        "sqlite3": "^5.1.7"
+        "sqlite3": "^5.1.7",
+        "uuid": "^11.1.0"
     }
 }

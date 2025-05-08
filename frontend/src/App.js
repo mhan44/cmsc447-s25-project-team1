@@ -1,22 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useState, useEffect } from "react";
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import StudentsPage from './pages/StudentPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 import StudentPage from './pages/StudentPage';
 import ParentPage from './pages/ParentPage';
 import TherapistPage from './pages/TherapistPage';
 
 function App() {
-
-  //Initialize state isLoggedIn to false using the function setIsLoggedIn 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userType, setUserType] = useState("");
+
   useEffect(() => {
-    //Check localStorage to determine boolean login status isLoggedIn
     const status = localStorage.getItem("isLoggedIn") === "true";
     setIsLoggedIn(status);
     const type = localStorage.getItem("userType") || "";
@@ -34,13 +32,18 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/student" element={<StudentPage />} />
         <Route path="/parent" element={<ParentPage />} />
         <Route path="/therapist" element={<TherapistPage />} />
-        {/* Pass setIsLoggedIn and setUserType down to LoginPage */}
         <Route
           path="/login"
-          element={<LoginPage setIsLoggedIn={setIsLoggedIn} setUserType={setUserType} />}
+          element={
+            <LoginPage
+              setIsLoggedIn={setIsLoggedIn}
+              setUserType={setUserType}
+            />
+          }
         />
       </Routes>
     </Router>

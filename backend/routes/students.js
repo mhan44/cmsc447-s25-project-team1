@@ -1,85 +1,60 @@
 const express = require("express");
-const router = express.Router();
 const { getDbConnection } = require("../db");
+const { v4: uuid }        = require("uuid");
+const { sendVerificationEmail } = require("../emailService");
+const router = express.Router();
 
-// Create a student
+// Create a student (with temporary placeholders & email-verification)
 router.post("/", async (req, res) => {
   try {
     const db = await getDbConnection();
-    const { first_name, last_name, email, password } = req.body;
-    const result = await db.run(
-      "INSERT INTO student_account (first_name, last_name, email, password) VALUES (?, ?, ?, ?)",
-      [first_name, last_name, email, password]
-    );
+    const { email, password } = req.body;
+    const verifyToken = uuid();
+
+    // Temporary placeholders so name/phone/age NOT NULL errors won't fire
+    const tempName  = "Temp Student";
+    const tempPhone = "";
+    const tempAge   = 0;
+
+    const sql = `
+      INSERT INTO student_account
+        (name, phone_number, age, email, password, email_verified, verify_token)
+      VALUES (?, ?, ?, ?, ?, 0, ?)
+    `;
+    const result = await db.run(sql, [
+      tempName,
+      tempPhone,
+      tempAge,
+      email,
+      password,
+      verifyToken
+    ]);
     await db.close();
 
+    await sendVerificationEmail(email, verifyToken);
     res.json({
       student_id: result.lastID,
-      first_name,
-      last_name,
-      email
+      email,
+      message: "Verification email sent"
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Grab ALL students
-router.get("/", async (req, res) => {
-  try {
-    const db = await getDbConnection();
-    const rows = await db.all("SELECT * FROM student_account");
-    await db.close();
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Grab a single student
-router.get("/:id", async (req, res) => {
-  try {
-    const db = await getDbConnection();
-    const student = await db.get(
-      "SELECT * FROM student_account WHERE student_id = ?",
-      [req.params.id]
-    );
-    await db.close();
-
-    if (!student) return res.status(404).json({ error: "Student not found" });
-    res.json(student);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Update a student
+// Update a student’s profile post-verification
 router.put("/:id", async (req, res) => {
   try {
     const db = await getDbConnection();
-    const { first_name, last_name, email } = req.body;
+    const { name, phone_number, age, email } = req.body;
     await db.run(
-      "UPDATE student_account SET first_name = ?, last_name = ?, email = ? WHERE student_id = ?",
-      [first_name, last_name, email, req.params.id]
+      `UPDATE student_account
+         SET name = ?, phone_number = ?, age = ?, email = ?
+       WHERE student_id = ?`,
+      [name, phone_number, age, email, req.params.id]
     );
     await db.close();
-
     res.json({ message: "Student updated successfully" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE student
-router.delete("/:id", async (req, res) => {
-  try {
-    const db = await getDbConnection();
-    await db.run(
-      "DELETE FROM student_account WHERE student_id = ?",
-      [req.params.id]
-    );
-    await db.close();
-    res.json({ message: "Student deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

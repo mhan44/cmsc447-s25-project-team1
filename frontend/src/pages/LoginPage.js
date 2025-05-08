@@ -22,23 +22,25 @@ export default function LoginPage({ setIsLoggedIn, setUserType }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form)
     });
-    //If successful login
+
     if (res.ok) {
       const data = await res.json();
-      console.log('Login response data:', data);
-
-      //Save login status to local storage
+      // Save login status
       localStorage.setItem("isLoggedIn", "true");
       setIsLoggedIn(true);
-
-      // Normalize role to lowercase and log navigation
+      // Save userType
       const role = data.role.toLowerCase();
       localStorage.setItem("userType", role);
       setUserType(role);
       navigate(`/${role}`);
     } else {
       const err = await res.json();
-      alert('Login failed: ' + err.error);
+      if (err.error === 'EMAIL_NOT_VERIFIED') {
+        // Redirect to verify-email flow
+        navigate(`/verify-email?email=${encodeURIComponent(form.email)}&role=${form.role}`);
+      } else {
+        alert('Login failed: ' + err.error);
+      }
     }
   };
 
