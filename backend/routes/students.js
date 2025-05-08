@@ -4,39 +4,27 @@ const { v4: uuid }        = require("uuid");
 const { sendVerificationEmail } = require("../emailService");
 const router = express.Router();
 
-// Create a student (with temporary placeholders & email-verification)
+// Create a student
 router.post("/", async (req, res) => {
   try {
     const db = await getDbConnection();
     const { email, password } = req.body;
     const verifyToken = uuid();
 
-    // Temporary placeholders so name/phone/age NOT NULL errors won't fire
-    const tempName  = "Temp Student";
-    const tempPhone = "";
-    const tempAge   = 0;
+    // Temp placeholders
+    const tempFirst = "Temp", tempLast = "Student";
+    const tempPhone = "", tempAge = 0, tempAddr = "", tempZip = "";
 
-    const sql = `
-      INSERT INTO student_account
-        (name, phone_number, age, email, password, email_verified, verify_token)
-      VALUES (?, ?, ?, ?, ?, 0, ?)
-    `;
-    const result = await db.run(sql, [
-      tempName,
-      tempPhone,
-      tempAge,
-      email,
-      password,
-      verifyToken
-    ]);
+    await db.run(
+      `INSERT INTO student_account
+         (first_name, last_name, phone_number, age, address, zip_code, email, password, email_verified, verify_token)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+      [tempFirst, tempLast, tempPhone, tempAge, tempAddr, tempZip, email, password, verifyToken]
+    );
     await db.close();
 
     await sendVerificationEmail(email, verifyToken);
-    res.json({
-      student_id: result.lastID,
-      email,
-      message: "Verification email sent"
-    });
+    res.json({ message: "Verification email sent", email });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -45,13 +33,13 @@ router.post("/", async (req, res) => {
 // Update a student’s profile post-verification
 router.put("/:id", async (req, res) => {
   try {
+    const { first_name, last_name, phone_number, age, address, zip_code } = req.body;
     const db = await getDbConnection();
-    const { name, phone_number, age, email } = req.body;
     await db.run(
       `UPDATE student_account
-         SET name = ?, phone_number = ?, age = ?, email = ?
+         SET first_name = ?, last_name = ?, phone_number = ?, age = ?, address = ?, zip_code = ?
        WHERE student_id = ?`,
-      [name, phone_number, age, email, req.params.id]
+      [first_name, last_name, phone_number, age, address, zip_code, req.params.id]
     );
     await db.close();
     res.json({ message: "Student updated successfully" });

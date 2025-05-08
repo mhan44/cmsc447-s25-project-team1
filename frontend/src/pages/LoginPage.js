@@ -25,18 +25,20 @@ export default function LoginPage({ setIsLoggedIn, setUserType }) {
 
     if (res.ok) {
       const data = await res.json();
-      // Save login status
       localStorage.setItem("isLoggedIn", "true");
       setIsLoggedIn(true);
-      // Save userType
-      const role = data.role.toLowerCase();
-      localStorage.setItem("userType", role);
-      setUserType(role);
-      navigate(`/${role}`);
+      localStorage.setItem("userType", data.role.toLowerCase());
+      setUserType(data.role.toLowerCase());
+      localStorage.setItem("userId", data.id);
+
+      if (data.profileComplete) {
+        navigate(`/${data.role.toLowerCase()}`);
+      } else {
+        navigate('/complete-profile');
+      }
     } else {
       const err = await res.json();
       if (err.error === 'EMAIL_NOT_VERIFIED') {
-        // Redirect to verify-email flow
         navigate(`/verify-email?email=${encodeURIComponent(form.email)}&role=${form.role}`);
       } else {
         alert('Login failed: ' + err.error);
@@ -49,10 +51,15 @@ export default function LoginPage({ setIsLoggedIn, setUserType }) {
       <h2>Log In</h2>
       <form onSubmit={handleSubmit}>
         <label htmlFor="role">Role</label>
-        <select id="role" name="role" value={form.role} onChange={handleChange}>
+        <select
+          id="role"
+          name="role"
+          value={form.role}
+          onChange={handleChange}
+        >
           <option value="student">Student</option>
           <option value="parent">Parent</option>
-          <option value="therapist">Tutor/Therapist</option>
+          <option value="therapist">Therapist</option>
         </select>
 
         <label htmlFor="email">Email</label>
@@ -77,7 +84,6 @@ export default function LoginPage({ setIsLoggedIn, setUserType }) {
 
         <button type="submit">Log In</button>
       </form>
-
       <div className="toggle-link">
         New here? <Link to="/register">Sign up</Link>
       </div>

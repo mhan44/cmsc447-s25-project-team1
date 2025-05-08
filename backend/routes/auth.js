@@ -24,20 +24,64 @@ router.post('/login', async (req, res) => {
     }
 
     const row = await db.get(sql, [email]);
-    await db.close();
-
-    // invalid credentials
     if (!row || row.password !== password) {
+      await db.close();
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-
-    // block if not verified
     if (!row.email_verified) {
+      await db.close();
       return res.status(403).json({ error: 'EMAIL_NOT_VERIFIED' });
     }
 
-    // success
-    return res.json({ message: 'Login successful', id: row.id, role });
+    // Check profile completeness
+    let profileRow;
+    if (role === 'parent') {
+      profileRow = await db.get(
+        `SELECT first_name, last_name, phone_number, age, address, zip_code
+           FROM parent_account
+          WHERE parent_id = ?`,
+        [row.id]
+      );
+    } else if (role === 'therapist') {
+      profileRow = await db.get(
+        `SELECT first_name, last_name, phone_number, age, address, zip_code
+           FROM therapist_account
+          WHERE therapist_id = ?`,
+        [row.id]
+      );
+    } else {
+      profileRow = await db.get(
+        `SELECT first_name, last_name, phone_number, age, address, zip_code
+           FROM student_account
+          WHERE student_id = ?`,
+        [row.id]
+      );
+    }
+    await db.close();
+
+    const {
+      first_name,
+      last_name,
+      phone_number,
+      age,
+      address,
+      zip_code
+    } = profileRow;
+    const profileComplete = !!(
+      first_name &&
+      last_name &&
+      phone_number &&
+      age != null &&
+      address &&
+      zip_code
+    );
+
+    return res.json({
+      message: 'Login successful',
+      id: row.id,
+      role,
+      profileComplete
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -45,56 +89,47 @@ router.post('/login', async (req, res) => {
 
 // GET /api/auth/verify-email
 router.get('/verify-email', async (req, res) => {
-  const { email, token } = req.query;
+  const { email, token, role } = req.query;
+  console.log('🔍 verify-email called:', { email, token, role });
+
+  if (!email || !token) {
+    return res.status(400).json({ error: 'Missing email or token' });
+  }
+
   try {
     const db = await getDbConnection();
 
-    // 1) Try student
-    let row = await db.get(
-      `SELECT email_verified FROM student_account WHERE email = ? AND verify_token = ?`,
-      [email, token]
-    );
-    if (row) {
+    // Helper to attempt verify on a given table
+    const tryVerify = async (table) => {
+      const row = await db.get(
+        `SELECT email_verified FROM ${table} WHERE email = ? AND verify_token = ?`,
+        [email, token]
+      );
+      if (!row) return false;
       await db.run(
-        `UPDATE student_account SET email_verified = 1, verify_token = NULL WHERE email = ?`,
+        `UPDATE ${table} SET email_verified = 1, verify_token = NULL WHERE email = ?`,
         [email]
       );
-      await db.close();
-      return res.json({ success: true, message: 'Email verified' });
-    }
+      return true;
+    };
 
-    // 2) Try parent
-    row = await db.get(
-      `SELECT email_verified FROM parent_account WHERE email = ? AND verify_token = ?`,
-      [email, token]
-    );
-    if (row) {
-      await db.run(
-        `UPDATE parent_account SET email_verified = 1, verify_token = NULL WHERE email = ?`,
-        [email]
-      );
-      await db.close();
-      return res.json({ success: true, message: 'Email verified' });
-    }
+    // Order: student, parent, therapist
+    let verified =
+      (await tryVerify('student_account')) ||
+      (await tryVerify('parent_account')) ||
+      (await tryVerify('therapist_account'));
 
-    // 3) Try therapist
-    row = await db.get(
-      `SELECT email_verified FROM therapist_account WHERE email = ? AND verify_token = ?`,
-      [email, token]
-    );
-    if (row) {
-      await db.run(
-        `UPDATE therapist_account SET email_verified = 1, verify_token = NULL WHERE email = ?`,
-        [email]
-      );
-      await db.close();
-      return res.json({ success: true, message: 'Email verified' });
-    }
-
-    // No match
     await db.close();
-    return res.status(400).json({ error: 'Invalid or expired token' });
+
+    if (verified) {
+      console.log('✔️ verify-email: email verified for', email);
+      return res.json({ success: true, message: 'Email successfully verified' });
+    } else {
+      console.log('❌ verify-email: invalid or expired token for', email);
+      return res.status(400).json({ error: 'Invalid or expired token' });
+    }
   } catch (err) {
+    console.error('🔴 verify-email error:', err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -102,10 +137,13 @@ router.get('/verify-email', async (req, res) => {
 // POST /api/auth/resend-verify
 router.post('/resend-verify', async (req, res) => {
   const { email, role } = req.body;
+  console.log('👉 resend-verify called for:', { email, role });
+
   try {
     const db = await getDbConnection();
     const newToken = uuid();
 
+    // Build the right update SQL based on role
     let sql;
     if (role === 'parent') {
       sql = 'UPDATE parent_account SET verify_token = ?, email_verified = 0 WHERE email = ?';
@@ -119,12 +157,22 @@ router.post('/resend-verify', async (req, res) => {
     await db.close();
 
     if (result.changes === 0) {
+      console.warn('⚠️ resend-verify: user not found:', email, role);
       return res.status(404).json({ error: 'User not found' });
     }
 
-    await sendVerificationEmail(email, newToken);
+    // Now actually send the email
+    try {
+      await sendVerificationEmail(email, newToken);
+      console.log('✔️ resend-verify: verification email sent to', email);
+    } catch (sendErr) {
+      console.error('❌ resend-verify: sendVerificationEmail error:', sendErr);
+      return res.status(500).json({ error: 'Failed to send verification email' });
+    }
+
     return res.json({ success: true, message: 'Verification email resent' });
   } catch (err) {
+    console.error('❌ resend-verify: unexpected error:', err);
     return res.status(500).json({ error: err.message });
   }
 });

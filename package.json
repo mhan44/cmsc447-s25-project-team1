@@ -9,6 +9,7 @@
   },
   "name": "cmsc447-s25-project-team1",
   "version": "1.0.0",
+  "proxy": "http://localhost:4000",
   "description": "Therapy Appointment Scheduler for Students with Mental Health Disorders",
   "main": "index.js",
   "scripts": {
