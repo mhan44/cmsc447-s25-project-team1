@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
+import { Calendar as BigCalendar, dateFnsLocalizer, Views } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, isBefore } from 'date-fns';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { enUS } from 'date-fns/locale';
@@ -18,6 +18,9 @@ function ParentPage() {
   const [sessionHistory, setSessionHistory] = useState([]);
   const [formData, setFormData] = useState({ name: '', age: '' });
   const [newEvent, setNewEvent] = useState({ title: '', start: '', end: '' });
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [calendarView, setCalendarView] = useState(Views.WEEK);
+  const [calendarDate, setCalendarDate] = useState(new Date());
 
   useEffect(() => {
     setChildren([{ id: 1, name: 'Jane Doe', age: 15 }]);
@@ -32,6 +35,8 @@ function ParentPage() {
       { title: 'Depression Therapy', date: 'May 5, 2025' },
       { title: 'ADHD Therapy', date: 'May 1, 2025' },
     ]);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const handleAddChild = (e) => {
@@ -51,7 +56,6 @@ function ParentPage() {
 
     const now = new Date();
 
-    // If end time is in the past, add to session history
     if (isBefore(roundedEnd, now)) {
       setSessionHistory(prev => [
         ...prev,
@@ -78,6 +82,7 @@ function ParentPage() {
     <div style={styles.wrapper}>
       <header style={styles.header}>
         <h1 style={styles.title}>Therapy Scheduler</h1>
+        <div style={styles.clock}>{format(currentTime, 'EEEE, MMMM d, yyyy - hh:mm:ss a')}</div>
         <nav style={styles.nav}>
           <a href="#" style={styles.navLink}>Dashboard</a>
           <a href="#" style={styles.navLink}>Logout</a>
@@ -88,7 +93,6 @@ function ParentPage() {
       <p style={styles.subtitle}>Manage children, view sessions, and book appointments</p>
 
       <div style={styles.cardContainer}>
-        {/* Add Child */}
         <div style={styles.card}>
           <h3 style={styles.cardTitle}>Add New Child</h3>
           <form onSubmit={handleAddChild}>
@@ -112,7 +116,6 @@ function ParentPage() {
           </form>
         </div>
 
-        {/* Children List */}
         <div style={styles.card}>
           <h3 style={styles.cardTitle}>Children</h3>
           {children.map(child => (
@@ -122,7 +125,6 @@ function ParentPage() {
           ))}
         </div>
 
-        {/* Session History */}
         <div style={styles.card}>
           <h3 style={styles.cardTitle}>Session History</h3>
           {sessionHistory.length === 0 ? (
@@ -137,7 +139,6 @@ function ParentPage() {
           )}
         </div>
 
-        {/* Appointment Form */}
         <div style={{ ...styles.card, gridColumn: '1 / -1' }}>
           <h3 style={styles.cardTitle}>Book Appointment</h3>
           <form onSubmit={handleAddEvent}>
@@ -171,7 +172,6 @@ function ParentPage() {
           </form>
         </div>
 
-        {/* Calendar */}
         <div style={{ ...styles.card, gridColumn: '1 / -1' }}>
           <h3 style={styles.cardTitle}>Appointment Calendar</h3>
           <BigCalendar
@@ -181,7 +181,11 @@ function ParentPage() {
             endAccessor="end"
             step={15}
             timeslots={1}
-            defaultView="week"
+            views={['month', 'week', 'day', 'agenda']}
+            view={calendarView}
+            date={calendarDate}
+            onView={(view) => setCalendarView(view)}
+            onNavigate={(date) => setCalendarDate(date)}
             style={{ height: 600 }}
           />
         </div>
@@ -206,6 +210,14 @@ const styles = {
     alignItems: 'center',
   },
   title: { fontSize: '1.5rem', margin: 0 },
+  clock: {
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: '0.5rem 1rem',
+    borderRadius: '8px',
+  },
   nav: { display: 'flex', gap: '1rem' },
   navLink: {
     color: 'white',
@@ -268,3 +280,4 @@ const styles = {
 };
 
 export default ParentPage;
+
