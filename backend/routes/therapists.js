@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Create a therapist
 router.post("/", async (req, res) => {
+  console.log("Register request received:", req.body);
   try {
     const db = await getDbConnection();
     const { email, password, admin_id, approval_date } = req.body;
@@ -25,6 +26,8 @@ router.post("/", async (req, res) => {
     await sendVerificationEmail(email, verifyToken);
     res.json({ message: "Verification email sent", email });
   } catch (err) {
+    console.error("Registration failed:", err.message);
+    console.error("Full error object:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -43,6 +46,7 @@ router.put("/:id", async (req, res) => {
     await db.close();
     res.json({ message: "Therapist updated successfully" });
   } catch (err) {
+    console.error("Registration failed:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

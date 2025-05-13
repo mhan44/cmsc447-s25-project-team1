@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Create a parent
 router.post("/", async (req, res) => {
+  console.log("Register request received:", req.body);
   try {
     const db = await getDbConnection();
     const { email, password } = req.body;
@@ -25,6 +26,8 @@ router.post("/", async (req, res) => {
     await sendVerificationEmail(email, verifyToken);
     res.json({ message: "Verification email sent", email });
   } catch (err) {
+    console.error("Registration failed:", err.message);
+    console.error("Full error object:", err);
     res.status(500).json({ error: err.message });
   }
 });
