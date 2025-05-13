@@ -3,7 +3,8 @@
 How to run backend:
 1. cd to backend directory
 2. npm install (one time)
-3. node index.js
+3. npm install bcrypt (one time)
+4. node index.js
 
 How to run frontend: 
 1. cd to frontend directory

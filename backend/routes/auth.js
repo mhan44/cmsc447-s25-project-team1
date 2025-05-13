@@ -6,6 +6,7 @@ const router  = express.Router();
 const { getDbConnection } = require('../db');
 const { v4: uuid } = require('uuid');
 const { sendVerificationEmail } = require('../emailService');
+const bcrypt = require("bcrypt"); //hashing
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -24,7 +25,7 @@ router.post('/login', async (req, res) => {
     }
 
     const row = await db.get(sql, [email]);
-    if (!row || row.password !== password) {
+    if (!row || !(await bcrypt.compare(password, row.password))) {
       await db.close();
       return res.status(401).json({ error: 'Invalid credentials' });
     }

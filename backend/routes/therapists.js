@@ -3,6 +3,7 @@ const { getDbConnection } = require("../db");
 const { v4: uuid }        = require("uuid");
 const { sendVerificationEmail } = require("../emailService");
 const router = express.Router();
+const bcrypt = require("bcrypt"); //password hashing
 
 // Create a therapist
 router.post("/", async (req, res) => {
@@ -10,6 +11,7 @@ router.post("/", async (req, res) => {
   try {
     const db = await getDbConnection();
     const { email, password, admin_id, approval_date } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10); //hash
     const verifyToken = uuid();
 
     const tempFirst = "Temp", tempLast = "Therapist";
@@ -19,7 +21,7 @@ router.post("/", async (req, res) => {
       `INSERT INTO therapist_account
          (first_name, last_name, phone_number, age, address, zip_code, email, password, email_verified, verify_token, admin_id, approval_date)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-      [tempFirst, tempLast, tempPhone, tempAge, tempAddr, tempZip, email, password, verifyToken, admin_id, approval_date]
+      [tempFirst, tempLast, tempPhone, tempAge, tempAddr, tempZip, email, hashedPassword, verifyToken, admin_id, approval_date]
     );
     await db.close();
 
