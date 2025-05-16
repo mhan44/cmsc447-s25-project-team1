@@ -1,263 +1,403 @@
-// Stylish Therapist Dashboard (Updated with Manual Availability)
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Views, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay } from 'date-fns';
+import {
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  addWeeks,
+} from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import axios from 'axios';
 
-const locales = { 'en-US': enUS };
+/* ---------- constants ---------- */
+const locales   = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
-export default function TherapistPage() {
-  const [availability, setAvailability] = useState([]);
-  const [appointments, setAppointments] = useState([]);
-  const [pendingRequests, setPendingRequests] = useState([
-    { id: 101, student: 'John Smith', date: 'May 20, 2025', time: '2:00 PM - 2:45 PM' },
-  ]);
-  const [view, setView] = useState(Views.MONTH);
-  const [date, setDate] = useState(new Date());
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [manualSlot, setManualSlot] = useState({ start: '', end: '' });
+const PURPLE    = '#805ad5';
+const LIGHT_BG  = '#faf5ff';
+const DAYS      = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/* ------------------------------------------------------------------ */
+/* TherapistPage */
+/* ------------------------------------------------------------------ */
+export default function TherapistPage({ therapistId }) {
+  if (!therapistId) {
+    return (
+      <div style={{ padding: 40, fontFamily: 'Inter, sans-serif' }}>
+        <h2>Therapist ID missing – cannot load dashboard.</h2>
+      </div>
+    );
+  }
+
+  /* ---------- state ---------- */
+  const [availability,   setAvailability]   = useState([]);
+  const [appointments,   setAppointments]   = useState([]);
+  const [pending,        setPending]        = useState([]);
+  const [specialtyInput, setSpecialtyInput] = useState('');
+  const [view,           setView]           = useState(Views.MONTH);
+  const [date,           setDate]           = useState(new Date());
+  const [clock,          setClock]          = useState(new Date());
+
+  // weekly rows: { enabled, start, end }
+  const [weekly, setWeekly] = useState(
+    DAYS.map(() => ({ enabled: false, start: '', end: '' }))
+  );
+
+  /* ---------- timers ---------- */
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    const t = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(t);
   }, []);
 
-  const handleSelectSlot = ({ start, end }) => {
-    
-    
-    const formattedStart = format(start, 'hh:mm a');
-    const formattedEnd = format(end, 'hh:mm a');
-    const newEvent = {
-      title: `Available from ${formattedStart} to ${formattedEnd}`,
-      start,
-      end,
-    };
-    setAvailability([...availability, newEvent]);
+  /* ---------- initial load ---------- */
+  useEffect(() => {
+    fetchAll();
+    axios
+      .get(`/api/therapists/${therapistId}`)
+      .then(res =>
+        setSpecialtyInput((res.data.specialties || []).join(', '))
+      )
+      .catch(err => console.error('Failed to load specialties:', err));
+    // eslint-disable-next-line
+  }, []);
+
+  const fetchAll = () => {
+    axios
+      .get(`/api/availability?therapist_id=${therapistId}`)
+      .then(res => setAvailability(res.data));
+    axios
+      .get(`/api/appointments?therapist_id=${therapistId}&status=accepted`)
+      .then(res => setAppointments(res.data));
+    axios
+      .get(`/api/appointments?therapist_id=${therapistId}&status=pending`)
+      .then(res => setPending(res.data));
   };
 
-  const handleAddManualSlot = (e) => {
-    e.preventDefault();
-    const start = new Date(manualSlot.start);
-    const end = new Date(manualSlot.end);
-    if (start >= end) return alert("End must be after start.");
-    setAvailability([...availability, {
-      title: `Available from ${format(start, 'hh:mm a')} to ${format(end, 'hh:mm a')}`,
-      start,
-      end,
-    }]);
-    setManualSlot({ start: '', end: '' });
+  /* ---------- specialties ---------- */
+  const saveSpecialties = () => {
+    const list = specialtyInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    axios
+      .put(`/api/therapists/${therapistId}`, { specialties: list })
+      .then(() => alert('Specialties updated'))
+      .catch(() => alert('Failed to save specialties'));
   };
 
-  const handleDeleteEvent = (eventToDelete) => {
-    const updatedEvents = availability.filter(
-      (event) => event.start !== eventToDelete.start || event.end !== eventToDelete.end
+  /* ---------- weekly UI helpers ---------- */
+  const toggleDay = (i) =>
+    setWeekly((rows) =>
+      rows.map((r, idx) =>
+        idx === i ? { ...r, enabled: !r.enabled } : r
+      )
     );
-    setAvailability(updatedEvents);
+
+  const setTime = (i, field, val) =>
+    setWeekly((rows) =>
+      rows.map((r, idx) =>
+        idx === i ? { ...r, [field]: val } : r
+      )
+    );
+
+  /* ---------- save weekly pattern (parallel OK) ---------- */
+  const saveWeeklyPattern = async () => {
+    const active = weekly.filter(
+      (d) => d.enabled && d.start && d.end && d.start < d.end
+    );
+    if (active.length === 0) {
+      return alert('Pick at least one day with valid times.');
+    }
+
+    try {
+      const now  = new Date();
+      const base = startOfWeek(now);
+      const reqs = [];
+
+      for (let w = 0; w < 4; w++) {
+        active.forEach(({ start, end }, idx) => {
+          const dayDate = addWeeks(base, w);
+          dayDate.setDate(dayDate.getDate() + idx);
+
+          reqs.push(
+            axios.post('/api/availability', {
+              therapist_id: therapistId,
+              start: `${format(dayDate, 'yyyy-MM-dd')}T${start}`,
+              end:   `${format(dayDate, 'yyyy-MM-dd')}T${end}`,
+            })
+          );
+        });
+      }
+
+      await Promise.all(reqs);
+      alert('Weekly availability saved');
+      setWeekly(DAYS.map(() => ({ enabled: false, start: '', end: '' })));
+      fetchAll();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save weekly availability (check console).');
+    }
   };
 
-  const handleRequestAction = (id, accepted) => {
-    setPendingRequests(prev => prev.filter(req => req.id !== id));
-    if (accepted) alert(`✅ Accepted booking #${id}`);
-    else alert(`❌ Declined booking #${id}`);
-  };
+  /* ---------- delete slot ---------- */
+  const deleteSlot = (slot) =>
+    axios
+      .delete(`/api/availability/${slot.id}`)
+      .then(fetchAll)
+      .catch(console.error);
 
-  const handleViewChange = (newView) => setView(newView);
-  const handleNavigate = (newDate) => setDate(newDate);
+  /* ---------- helper: ensure Date objects ---------- */
+  const toDate = (val) => (val instanceof Date ? val : new Date(val));
 
+  /* ---------- render ---------- */
   return (
     <div style={styles.pageWrapper}>
       <main style={styles.mainContent}>
         <h2 style={styles.heading}>Therapist Dashboard</h2>
-        <div style={styles.timestamp}>{format(currentTime, 'EEEE, MMMM d, yyyy - hh:mm:ss a')}</div>
-        <p style={styles.subtext}>Welcome to your therapist page. Manage availability and bookings.</p>
+        <div style={styles.timestamp}>
+          {format(clock, 'EEEE, MMMM d, yyyy - hh:mm:ss a')}
+        </div>
 
-        <div style={styles.card}>
-          <h3 style={styles.sectionTitle}>📬 Pending Bookings</h3>
-          {pendingRequests.length === 0 ? (
+        {/* Specialties ------------------------------------------------ */}
+        <section style={styles.card}>
+          <h3 style={styles.sectionTitle}>🔧 Your Specialties</h3>
+          <textarea
+            rows={2}
+            value={specialtyInput}
+            onChange={(e) => setSpecialtyInput(e.target.value)}
+            placeholder="Enter comma-separated specialties"
+            style={styles.textarea}
+          />
+          <button onClick={saveSpecialties} style={styles.acceptBtn}>
+            Save Specialties
+          </button>
+        </section>
+
+        {/* Pending requests ----------------------------------------- */}
+        <section style={styles.card}>
+          <h3 style={styles.sectionTitle}>📬 Pending Requests</h3>
+          {pending.length === 0 ? (
             <p style={styles.emptyText}>No requests</p>
           ) : (
-            pendingRequests.map(req => (
+            pending.map((req) => (
               <div key={req.id} style={styles.requestBox}>
                 <div>
-                  <strong>{req.student}</strong><br />{req.date}, {req.time}
+                  <strong>{req.student_name}</strong>
+                  <br />
+                  {format(new Date(req.start), 'MMM d, hh:mm a')} –{' '}
+                  {format(new Date(req.end), 'hh:mm a')}
                 </div>
                 <div>
-                  <button onClick={() => handleRequestAction(req.id, true)} style={styles.acceptBtn}>Accept</button>
-                  <button onClick={() => handleRequestAction(req.id, false)} style={styles.declineBtn}>Decline</button>
+                  <button
+                    onClick={() =>
+                      axios
+                        .put(`/api/appointments/${req.id}`, {
+                          status: 'accepted',
+                        })
+                        .then(fetchAll)
+                    }
+                    style={styles.acceptBtn}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() =>
+                      axios
+                        .put(`/api/appointments/${req.id}`, {
+                          status: 'declined',
+                        })
+                        .then(fetchAll)
+                    }
+                    style={styles.declineBtn}
+                  >
+                    Decline
+                  </button>
                 </div>
               </div>
             ))
           )}
-        </div>
+        </section>
 
-        <div style={styles.card}>
-          <h3 style={styles.sectionTitle}>➕ Manually Add Availability</h3>
-          <form onSubmit={handleAddManualSlot}>
-            <input type="datetime-local"  value={manualSlot.start} onChange={(e) => setManualSlot({ ...manualSlot, start: e.target.value })} style={styles.selectView} required />
-            <input type="datetime-local" value={manualSlot.end} onChange={(e) => setManualSlot({ ...manualSlot, end: e.target.value })} style={styles.selectView} required />
-            <button type="submit" style={{ ...styles.acceptBtn, marginTop: '10px' }}>Add Slot</button>
-          </form>
-        </div>
+        {/* Weekly availability -------------------------------------- */}
+        <section style={styles.card}>
+          <h3 style={styles.sectionTitle}>🗓️ Weekly Availability</h3>
+          {weekly.map((d, i) => (
+            <div key={DAYS[i]} style={styles.row}>
+              <input
+                type="checkbox"
+                checked={d.enabled}
+                onChange={() => toggleDay(i)}
+              />
+              <span style={{ width: 40 }}>{DAYS[i]}</span>
+              {d.enabled && (
+                <>
+                  <input
+                    type="time"
+                    value={d.start}
+                    onChange={(e) => setTime(i, 'start', e.target.value)}
+                    style={styles.input}
+                  />
+                  <span>to</span>
+                  <input
+                    type="time"
+                    value={d.end}
+                    onChange={(e) => setTime(i, 'end', e.target.value)}
+                    style={styles.input}
+                  />
+                </>
+              )}
+            </div>
+          ))}
+          <button onClick={saveWeeklyPattern} style={styles.acceptBtn}>
+            Save Weekly Pattern
+          </button>
+        </section>
 
-        <div style={styles.controls}>
-          <button onClick={() => handleNavigate(new Date(date.setMonth(date.getMonth() - 1)))} style={styles.navBtn}>← Previous</button>
-          <button onClick={() => handleNavigate(new Date())} style={styles.navBtn}>Today</button>
-          <button onClick={() => handleNavigate(new Date(date.setMonth(date.getMonth() + 1)))} style={styles.navBtn}>Next →</button>
-          <select onChange={(e) => handleViewChange(e.target.value)} value={view} style={styles.selectView}>
-            <option value={Views.MONTH}>Month</option>
-            <option value={Views.WEEK}>Week</option>
-            <option value={Views.DAY}>Day</option>
-            <option value={Views.AGENDA}>Agenda</option>
-          </select>
-        </div>
-
-        <div style={styles.calendarWrap}>
+        {/* Calendar -------------------------------------------------- */}
+        <section style={styles.card}>
+          <h3 style={styles.sectionTitle}>📅 Your Calendar</h3>
           <Calendar
             localizer={localizer}
-            events={appointments.concat(availability)}
+            events={[
+              ...availability.map((s) => ({
+                ...s,
+                title: 'Available',
+                isAvail: true,
+                start: toDate(s.start ?? `${s.date}T${s.start_time}`),
+                end:   toDate(s.end   ?? `${s.date}T${s.end_time}`),
+              })),
+              ...appointments.map((a) => ({
+                ...a,
+                title: 'Booked',
+                start: toDate(a.start),
+                end:   toDate(a.end),
+              })),
+            ]}
             startAccessor="start"
             endAccessor="end"
-            style={{ height: 500 }}
+            style={{ height: 400 }}
             selectable
             view={view}
             date={date}
-            onView={handleViewChange}
-            onNavigate={handleNavigate}
-            onSelectSlot={handleSelectSlot}
-            onSelectEvent={(event) => {
-              if (window.confirm('Delete this time slot?')) handleDeleteEvent(event);
-            }}
-            views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+            onView={setView}
+            onNavigate={setDate}
+            onSelectEvent={(evt) =>
+              evt.isAvail &&
+              window.confirm('Delete this slot?') &&
+              deleteSlot(evt)
+            }
+            views={[Views.MONTH, Views.WEEK, Views.DAY]}
           />
-        </div>
+        </section>
 
         <Link to="/">
-          <button style={styles.homeBtn}>🏠 Back to Home</button>
+          <button style={styles.homeBtn}>🏠 Home</button>
         </Link>
       </main>
     </div>
   );
 }
 
+/* ---------- styles ---------- */
 const styles = {
   pageWrapper: {
-    fontFamily: 'Segoe UI, sans-serif',
-    backgroundColor: '#f5f6fa',
+    fontFamily: 'Inter, sans-serif',
+    background: '#f9f9fb',
     minHeight: '100vh',
-    paddingBottom: '3rem'
+    paddingBottom: 40,
   },
   mainContent: {
-    maxWidth: 1000,
-    margin: '30px auto',
+    maxWidth: 960,
+    margin: '40px auto',
     padding: '0 20px',
-    textAlign: 'center'
+    textAlign: 'center',
   },
   heading: {
-    fontSize: '2.5rem',
-    marginBottom: '0.25rem',
-    color: '#4c51bf',
-    fontFamily: 'Poppins, sans-serif',
-    fontWeight: '700',
-    textShadow: '1px 1px 2px rgba(0, 0, 0, 0.1)'
+    fontSize: '2.25rem',
+    marginBottom: 8,
+    color: PURPLE,
+    fontWeight: 700,
   },
   timestamp: {
-    fontSize: '1.2rem',
-    fontWeight: '600',
     fontFamily: 'Courier New, monospace',
-    color: '#4a5568',
-    margin: '1rem auto',
-    backgroundColor: '#edf2f7',
-    padding: '0.75rem 1.5rem',
-    borderRadius: '10px',
+    background: '#eef2ff',
+    padding: '0.4rem 1rem',
+    borderRadius: 8,
     display: 'inline-block',
-    boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
-  },
-  subtext: {
-    marginBottom: '2rem',
-    color: '#666'
-  },
-  sectionTitle: {
-    color: '#6b46c1',
-    fontSize: '1.25rem',
-    marginBottom: '1rem'
+    marginBottom: 32,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: '12px',
+    background: '#fff',
+    borderRadius: 12,
     padding: '1.5rem',
     boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-    marginBottom: '2rem'
+    marginBottom: 32,
+    textAlign: 'left',
   },
-  requestBox: {
-    backgroundColor: '#f1f1ff',
-    borderLeft: '4px solid #805ad5',
-    padding: '1rem',
-    marginBottom: '1rem',
-    borderRadius: '8px',
+  sectionTitle: {
+    color: PURPLE,
+    fontSize: '1.3rem',
+    marginBottom: 16,
+    fontWeight: 600,
+  },
+  textarea: {
+    width: '100%',
+    padding: '0.5rem',
+    borderRadius: 6,
+    border: `1px solid ${PURPLE}`,
+  },
+  row: {
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  input: {
+    flex: '1 1 120px',
+    padding: '0.4rem',
+    borderRadius: 6,
+    border: `1px solid ${PURPLE}`,
   },
   acceptBtn: {
-    backgroundColor: '#38a169',
-    color: 'white',
+    background: PURPLE,
+    color: '#fff',
     border: 'none',
-    padding: '0.5rem 1rem',
-    borderRadius: '5px',
-    marginRight: '0.5rem',
-    cursor: 'pointer'
+    padding: '0.6rem 1.2rem',
+    borderRadius: 8,
+    fontWeight: 600,
+    cursor: 'pointer',
   },
   declineBtn: {
-    backgroundColor: '#e53e3e',
-    color: 'white',
+    background: '#e53e3e',
+    color: '#fff',
     border: 'none',
     padding: '0.5rem 1rem',
-    borderRadius: '5px',
-    cursor: 'pointer'
+    borderRadius: 8,
+    cursor: 'pointer',
   },
-  controls: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: '1rem',
-    marginBottom: '1rem'
-  },
-  navBtn: {
-    backgroundColor: '#6b46c1',
-    color: 'white',
-    border: 'none',
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
-    fontWeight: 'bold',
-    cursor: 'pointer'
-  },
-  selectView: {
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
-    border: '1px solid #ccc',
-    margin: '0.5rem'
-  },
-  calendarWrap: {
-    backgroundColor: '#ffffff',
+  requestBox: {
+    background: LIGHT_BG,
+    borderLeft: `4px solid ${PURPLE}`,
     padding: '1rem',
-    borderRadius: '12px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-    marginBottom: '2rem'
+    marginBottom: 12,
+    borderRadius: 8,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
+  emptyText: { color: '#888', fontStyle: 'italic' },
   homeBtn: {
-    backgroundColor: '#6b46c1',
-    color: 'white',
+    background: PURPLE,
+    color: '#fff',
     border: 'none',
     padding: '0.75rem 2rem',
-    borderRadius: '8px',
+    borderRadius: 8,
     fontSize: '1rem',
-    fontWeight: 'bold',
-    cursor: 'pointer'
+    fontWeight: 600,
+    cursor: 'pointer',
   },
-  emptyText: {
-    color: '#888'
-  }
 };

@@ -4,7 +4,7 @@ import '../styles/AuthPage.css';
 
 export default function CompleteProfilePage() {
   const navigate = useNavigate();
-  const userType = localStorage.getItem("userType");
+  const userType = localStorage.getItem("userType"); // 'student'|'parent'|'therapist'
   const userId   = localStorage.getItem("userId");
 
   const [form, setForm] = useState({
@@ -13,7 +13,8 @@ export default function CompleteProfilePage() {
     phone_number: '',
     age: '',
     address: '',
-    zip_code: ''
+    zip_code: '',
+    specialties: ''  // comma-separated list
   });
 
   const handleChange = e => {
@@ -23,12 +24,29 @@ export default function CompleteProfilePage() {
 
   const handleSubmit = async e => {
     e.preventDefault();
+    // Build payload; only include specialties for therapists
+    const payload = {
+      first_name:  form.first_name,
+      last_name:   form.last_name,
+      phone_number:form.phone_number,
+      age:         form.age,
+      address:     form.address,
+      zip_code:    form.zip_code,
+      ...(userType === 'therapist' && {
+        specialties: form.specialties
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+      })
+    };
+
     const url = `/api/${userType}s/${userId}`;
     const res = await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form)
+      body: JSON.stringify(payload)
     });
+
     if (res.ok) {
       navigate(`/${userType}`);
     } else {
@@ -93,6 +111,19 @@ export default function CompleteProfilePage() {
           onChange={handleChange}
           required
         />
+
+        {userType === 'therapist' && (
+          <>
+            <label>Specialties</label>
+            <input
+              name="specialties"
+              value={form.specialties}
+              onChange={handleChange}
+              placeholder="e.g. Anxiety, Family Therapy, CBT"
+            />
+            <small>Enter comma-separated specialties.</small>
+          </>
+        )}
 
         <button type="submit">Save Profile</button>
       </form>

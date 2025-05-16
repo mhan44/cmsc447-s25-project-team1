@@ -11,7 +11,9 @@
     "license": "",
     "dependencies": {
         "@sendgrid/mail": "^8.1.5",
+        "bcrypt": "^6.0.0",
         "cors": "^2.8.5",
+        "date-fns": "^4.1.0",
         "dotenv": "^16.5.0",
         "express": "^4.21.2",
         "mysql2": "^3.2.0",

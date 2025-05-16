@@ -1,139 +1,228 @@
-
-
-// Stylish Parent Dashboard (Updated with Manual Availability)
+// ParentPage.js
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Views, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import axios from 'axios';
 
 const locales = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
+const PURPLE = '#805ad5';
 
-export default function ParentPage() {
-  // Removed duplicate state
-
+export default function ParentPage({ parentId }) {
+  const [children, setChildren] = useState([]);
+  const [selectedChild, setSelectedChild] = useState(null);
+  const [newChildEmail, setNewChildEmail] = useState('');
+  const [therapists, setTherapists] = useState([]);
+  const [selectedTherapist, setSelectedTherapist] = useState(null);
+  const [availability, setAvailability] = useState([]);
   const [appointments, setAppointments] = useState([]);
-  const [pendingRequests, setPendingRequests] = useState([
-    { id: 101, student: 'John Smith', date: 'May 20, 2025', time: '2:00 PM - 2:45 PM' },
-  ]);
   const [view, setView] = useState(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [manualSlot, setManualSlot] = useState({ start: '', end: '' });
+  const [slotToBook, setSlotToBook] = useState(null);
 
   useEffect(() => {
+    // clock
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const handleSelectSlot = ({ start, end }) => {
-    
-    
-    const formattedStart = format(start, 'hh:mm a');
-    const formattedEnd = format(end, 'hh:mm a');
-    const newEvent = {
-      title: `Available from ${formattedStart} to ${formattedEnd}`,
-      start,
-      end,
-    };
-    setAvailability([...availability, newEvent]);
-  };
+  useEffect(() => {
+    // load your children, therapists, and your current appointments
+    axios.get(`/api/parents/${parentId}/students`)
+      .then(res => setChildren(res.data))
+      .catch(console.error);
 
-  const handleAddManualSlot = (e) => {
+    axios.get('/api/therapists')
+      .then(res => setTherapists(res.data))
+      .catch(console.error);
+
+    fetchAppointments();
+  }, []);
+
+  useEffect(() => {
+    // load availability when therapist selected
+    if (selectedTherapist) {
+      axios.get(`/api/availability?therapist_id=${selectedTherapist.id}`)
+        .then(res => setAvailability(res.data))
+        .catch(console.error);
+    } else {
+      setAvailability([]);
+    }
+  }, [selectedTherapist]);
+
+  function fetchAppointments() {
+    axios.get(`/api/appointments?parent_id=${parentId}`)
+      .then(res => setAppointments(res.data))
+      .catch(console.error);
+  }
+
+  function handleAddChild(e) {
     e.preventDefault();
-    const start = new Date(manualSlot.start);
-    const end = new Date(manualSlot.end);
-    if (start >= end) return alert("End must be after start.");
-    setAppointments([...appointments, {
-      title: `Therapy for Child`,
-      start,
-      end,
-    }]);
-    setManualSlot({ start: '', end: '' });
-  };
+    axios.post(`/api/parents/${parentId}/students`, { email: newChildEmail })
+      .then(res => {
+        setChildren([...children, res.data]);
+        setNewChildEmail('');
+      })
+      .catch(err => {
+        console.error(err);
+        alert('❌ Could not add child.');
+      });
+  }
 
-  const handleDeleteEvent = (eventToDelete) => {
-    const updatedEvents = availability.filter(
-      (event) => event.start !== eventToDelete.start || event.end !== eventToDelete.end
-    );
-    setAvailability(updatedEvents);
-  };
+  function handleSelectSlot(slot) {
+    setSlotToBook(slot);
+  }
 
-  const handleRequestAction = (id, accepted) => {
-    setPendingRequests(prev => prev.filter(req => req.id !== id));
-    if (accepted) alert(`✅ Accepted booking #${id}`);
-    else alert(`❌ Declined booking #${id}`);
-  };
+  function handleBookAppointment() {
+    if (!selectedChild || !selectedTherapist || !slotToBook) {
+      return alert('Select a child, a therapist, and a slot first.');
+    }
+    axios.post('/api/appointments', {
+      parent_id: parentId,
+      student_id: selectedChild.id,
+      therapist_id: selectedTherapist.id,
+      start: slotToBook.start.toISOString(),
+      end: slotToBook.end.toISOString(),
+      status: 'pending'
+    })
+    .then(() => {
+      alert('✅ Appointment requested');
+      setSlotToBook(null);
+      fetchAppointments();
+    })
+    .catch(err => {
+      console.error(err);
+      alert('❌ Could not book appointment.');
+    });
+  }
 
-  const handleViewChange = (newView) => setView(newView);
-  const handleNavigate = (newDate) => setDate(newDate);
+  function handleCancel(id) {
+    axios.put(`/api/appointments/${id}`, { status: 'cancelled' })
+      .then(fetchAppointments)
+      .catch(console.error);
+  }
 
   return (
     <div style={styles.pageWrapper}>
       <main style={styles.mainContent}>
         <h2 style={styles.heading}>Parent Dashboard</h2>
-        <div style={styles.timestamp}>{format(currentTime, 'EEEE, MMMM d, yyyy - hh:mm:ss a')}</div>
-        <p style={styles.subtext}>Welcome to your parent dashboard. Manage your child's sessions and appointments.</p>
-
-        <div style={styles.card}>
-          <h3 style={styles.sectionTitle}>📅 Booked Appointments</h3>
-          {pendingRequests.length === 0 ? (
-            <p style={styles.emptyText}>No requests</p>
-          ) : (
-            pendingRequests.map(req => (
-              <div key={req.id} style={styles.requestBox}>
-                <div>
-                  <strong>{req.student}</strong><br />{req.date}, {req.time}
-                </div>
-                <div>
-                  <button onClick={() => handleRequestAction(req.id, false)} style={styles.declineBtn}>Cancel</button>
-                </div>
-              </div>
-            ))
-          )}
+        <div style={styles.timestamp}>
+          {format(currentTime, 'EEEE, MMMM d, yyyy - hh:mm:ss a')}
         </div>
+        <p style={styles.subtext}>
+          Manage your children and book their sessions.
+        </p>
 
+        {/* Your Children */}
         <div style={styles.card}>
-          <h3 style={styles.sectionTitle}>➕ Book Appointment</h3>
-          <form onSubmit={handleAddManualSlot}>
-            <input type="datetime-local"  value={manualSlot.start} onChange={(e) => setManualSlot({ ...manualSlot, start: e.target.value })} style={styles.selectView} required />
-            <input type="datetime-local" value={manualSlot.end} onChange={(e) => setManualSlot({ ...manualSlot, end: e.target.value })} style={styles.selectView} required />
-            <button type="submit" style={{ ...styles.acceptBtn, marginTop: '10px' }}>Add Slot</button>
+          <h3 style={styles.sectionTitle}>👶 Your Children</h3>
+          <form onSubmit={handleAddChild} style={styles.formRow}>
+            <input
+              type="email"
+              placeholder="Child's email"
+              value={newChildEmail}
+              onChange={e => setNewChildEmail(e.target.value)}
+              style={styles.input}
+              required
+            />
+            <button type="submit" style={styles.acceptBtn}>Add Child</button>
           </form>
+          {children.map(child => (
+            <div
+              key={child.id}
+              onClick={() => setSelectedChild(child)}
+              style={{
+                ...styles.requestBox,
+                borderLeft: `4px solid ${selectedChild?.id === child.id ? '#38a169' : PURPLE}`
+              }}
+            >
+              {child.name} — {child.email}
+            </div>
+          ))}
         </div>
 
-        <div style={styles.controls}>
-          <button onClick={() => handleNavigate(new Date(date.setMonth(date.getMonth() - 1)))} style={styles.navBtn}>← Previous</button>
-          <button onClick={() => handleNavigate(new Date())} style={styles.navBtn}>Today</button>
-          <button onClick={() => handleNavigate(new Date(date.setMonth(date.getMonth() + 1)))} style={styles.navBtn}>Next →</button>
-          <select onChange={(e) => handleViewChange(e.target.value)} value={view} style={styles.selectView}>
-            <option value={Views.MONTH}>Month</option>
-            <option value={Views.WEEK}>Week</option>
-            <option value={Views.DAY}>Day</option>
-            <option value={Views.AGENDA}>Agenda</option>
+        {/* Choose Therapist */}
+        <div style={styles.card}>
+          <h3 style={styles.sectionTitle}>👩‍⚕️ Choose Therapist</h3>
+          <select
+            value={selectedTherapist?.id || ''}
+            onChange={e => {
+              const t = therapists.find(t => t.id === +e.target.value);
+              setSelectedTherapist(t || null);
+            }}
+            style={styles.select}
+          >
+            <option value="">-- pick one --</option>
+            {therapists.map(t => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.specialty})
+              </option>
+            ))}
           </select>
         </div>
 
-        <div style={styles.calendarWrap}>
+        {/* Calendar */}
+        <div style={styles.card}>
+          <h3 style={styles.sectionTitle}>📅 Available Slots & Your Bookings</h3>
           <Calendar
             localizer={localizer}
-            events={appointments}
+            events={[
+              ...availability.map(a => ({ ...a, title: 'Available', isAvail: true })),
+              ...appointments.map(a => ({
+                ...a,
+                title: a.status === 'pending' ? '⏳ Pending' : '✅ Booked'
+              }))
+            ]}
             startAccessor="start"
             endAccessor="end"
-            style={{ height: 500 }}
+            style={{ height: 400 }}
             selectable
             view={view}
             date={date}
-            onView={handleViewChange}
-            onNavigate={handleNavigate}
+            onView={setView}
+            onNavigate={setDate}
             onSelectSlot={handleSelectSlot}
-            onSelectEvent={(event) => {
-              if (window.confirm('Delete this time slot?')) handleDeleteEvent(event);
+            onSelectEvent={evt => {
+              if (evt.isAvail) setSlotToBook(evt);
             }}
-            views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+            views={[Views.MONTH, Views.WEEK, Views.DAY]}
           />
+          <button
+            onClick={handleBookAppointment}
+            style={{ ...styles.acceptBtn, marginTop: 8 }}
+            disabled={!slotToBook}
+          >
+            Book This Slot
+          </button>
+        </div>
+
+        {/* Your Requests */}
+        <div style={styles.card}>
+          <h3 style={styles.sectionTitle}>📬 Your Requests</h3>
+          {appointments.length === 0 ? (
+            <p style={styles.emptyText}>No appointments yet</p>
+          ) : appointments.map(req => (
+            <div key={req.id} style={styles.requestBox}>
+              <div>
+                <strong>{req.student_name}</strong><br />
+                {format(new Date(req.start), 'MMM d, hh:mm a')} –{' '}
+                {format(new Date(req.end), 'hh:mm a')}<br />
+                <em>Status: {req.status}</em>
+              </div>
+              {req.status === 'pending' && (
+                <button
+                  onClick={() => handleCancel(req.id)}
+                  style={styles.declineBtn}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          ))}
         </div>
 
         <Link to="/">
@@ -146,120 +235,95 @@ export default function ParentPage() {
 
 const styles = {
   pageWrapper: {
-    fontFamily: 'Segoe UI, sans-serif',
-    backgroundColor: '#f5f6fa',
+    fontFamily: 'Inter, sans-serif',
+    backgroundColor: '#f9f9fb',
     minHeight: '100vh',
-    paddingBottom: '3rem'
+    paddingBottom: 40
   },
   mainContent: {
-    maxWidth: 1000,
-    margin: '30px auto',
+    maxWidth: 960,
+    margin: '40px auto',
     padding: '0 20px',
     textAlign: 'center'
   },
   heading: {
-    fontSize: '2.5rem',
-    marginBottom: '0.25rem',
-    color: '#4c51bf',
-    fontFamily: 'Poppins, sans-serif',
-    fontWeight: '700',
-    textShadow: '1px 1px 2px rgba(0, 0, 0, 0.1)'
+    fontSize: '2.25rem',
+    marginBottom: '0.5rem',
+    color: PURPLE,
+    fontWeight: 700
   },
   timestamp: {
-    fontSize: '1.2rem',
-    fontWeight: '600',
+    fontSize: '1rem',
     fontFamily: 'Courier New, monospace',
-    color: '#4a5568',
-    margin: '1rem auto',
-    backgroundColor: '#edf2f7',
-    padding: '0.75rem 1.5rem',
-    borderRadius: '10px',
-    display: 'inline-block',
-    boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
+    color: '#3c3a4f',
+    marginBottom: '1.5rem',
+    backgroundColor: '#eef2ff',
+    padding: '0.5rem 1rem',
+    borderRadius: 8,
+    display: 'inline-block'
   },
-  subtext: {
-    marginBottom: '2rem',
-    color: '#666'
-  },
-  sectionTitle: {
-    color: '#4299e1',
-    fontSize: '1.25rem',
-    marginBottom: '1rem'
-  },
+  subtext: { marginBottom: '2rem', color: '#555' },
   card: {
     backgroundColor: '#fff',
-    borderRadius: '12px',
+    borderRadius: 12,
     padding: '1.5rem',
     boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-    marginBottom: '2rem'
+    marginBottom: '2rem',
+    textAlign: 'left'
   },
-  requestBox: {
-    backgroundColor: '#e6f7ff',
-    borderLeft: '4px solid #63b3ed',
-    padding: '1rem',
-    marginBottom: '1rem',
-    borderRadius: '8px',
+  sectionTitle: { color: PURPLE, fontSize: '1.3rem', marginBottom: '1rem', fontWeight: 600 },
+  formRow: {
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center'
+    gap: '0.75rem',
+    alignItems: 'center',
+    flexWrap: 'wrap'
+  },
+  input: {
+    flex: '1 1 200px',
+    padding: '0.5rem',
+    borderRadius: 6,
+    border: `1px solid ${PURPLE}`
+  },
+  select: {
+    padding: '0.5rem',
+    borderRadius: 6,
+    border: `1px solid ${PURPLE}`,
+    width: '100%'
   },
   acceptBtn: {
-    backgroundColor: '#38a169',
-    color: 'white',
+    backgroundColor: PURPLE,
+    color: '#fff',
     border: 'none',
-    padding: '0.5rem 1rem',
-    borderRadius: '5px',
-    marginRight: '0.5rem',
+    padding: '0.6rem 1.2rem',
+    borderRadius: 8,
+    fontWeight: 600,
     cursor: 'pointer'
   },
   declineBtn: {
     backgroundColor: '#e53e3e',
-    color: 'white',
+    color: '#fff',
     border: 'none',
     padding: '0.5rem 1rem',
-    borderRadius: '5px',
+    borderRadius: 8,
     cursor: 'pointer'
   },
-  controls: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: '1rem',
-    marginBottom: '1rem'
-  },
-  navBtn: {
-    backgroundColor: '#6b46c1',
-    color: 'white',
-    border: 'none',
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
-    fontWeight: 'bold',
-    cursor: 'pointer'
-  },
-  selectView: {
-    padding: '0.5rem 1rem',
-    borderRadius: '6px',
-    border: '1px solid #ccc',
-    margin: '0.5rem'
-  },
-  calendarWrap: {
-    backgroundColor: '#ffffff',
+  requestBox: {
+    backgroundColor: '#faf5ff',
+    borderLeft: `4px solid ${PURPLE}`,
     padding: '1rem',
-    borderRadius: '12px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-    marginBottom: '2rem'
+    marginBottom: '1rem',
+    borderRadius: 8,
+    cursor: 'pointer'
   },
+  emptyText: { color: '#888', fontStyle: 'italic' },
   homeBtn: {
-    backgroundColor: '#6b46c1',
-    color: 'white',
+    backgroundColor: PURPLE,
+    color: '#fff',
     border: 'none',
     padding: '0.75rem 2rem',
-    borderRadius: '8px',
+    borderRadius: 8,
     fontSize: '1rem',
-    fontWeight: 'bold',
+    fontWeight: 600,
     cursor: 'pointer'
-  },
-  emptyText: {
-    color: '#888'
   }
 };

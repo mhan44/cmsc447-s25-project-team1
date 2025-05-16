@@ -1,6 +1,7 @@
+// backend/routes/appointments.js
 const express = require("express");
 const router = express.Router();
-const db = require("../db");
+const { getDbConnection } = require("../db");
 
 // Create an appointment
 router.post("/", async (req, res) => {
@@ -9,41 +10,38 @@ router.post("/", async (req, res) => {
       student_id,
       parent_id,
       therapist_id,
-      time,
+      start_time,
+      end_time,
       date,
       status,
       type
     } = req.body;
 
-    const sql = `
-      INSERT INTO appointment
-        (student_id, parent_id, therapist_id, time, date, status, type)
-      VALUES
-        (?, ?, ?, ?, ?, ?, ?)
-    `;
+    const db = await getDbConnection();
+    const result = await db.run(
+      `INSERT INTO appointments
+         (student_id, parent_id, therapist_id, start_time, end_time, date, status, type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [student_id, parent_id, therapist_id, start_time, end_time, date, status, type]
+    );
+    await db.close();
 
-    const [result] = await db.query(sql, [
-      student_id,
-      parent_id,
-      therapist_id,
-      time,
-      date,
-      status,
-      type
-    ]);
-
-    res.json({ appointment_id: result.insertId, ...req.body });
+    res.json({ appointment_id: result.lastID, ...req.body });
   } catch (err) {
+    console.error("Appointment create error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
 // Grab all appointments
-router.get("/", async (req, res) => {
+router.get("/", async (_req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM appointment");
+    const db = await getDbConnection();
+    const rows = await db.all("SELECT * FROM appointments");
+    await db.close();
     res.json(rows);
   } catch (err) {
+    console.error("Fetch appointments error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -51,11 +49,16 @@ router.get("/", async (req, res) => {
 // Grab a single appointment
 router.get("/:id", async (req, res) => {
   try {
-    const sql = "SELECT * FROM appointment WHERE appointment_id = ?";
-    const [rows] = await db.query(sql, [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: "Appointment not found" });
-    res.json(rows[0]);
+    const db = await getDbConnection();
+    const row = await db.get(
+      "SELECT * FROM appointments WHERE appointment_id = ?",
+      [req.params.id]
+    );
+    await db.close();
+    if (!row) return res.status(404).json({ error: "Appointment not found" });
+    res.json(row);
   } catch (err) {
+    console.error("Fetch single appointment error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -67,32 +70,42 @@ router.put("/:id", async (req, res) => {
       student_id,
       parent_id,
       therapist_id,
-      time,
+      start_time,
+      end_time,
       date,
       status,
       type
     } = req.body;
 
-    const sql = `
-      UPDATE appointment
-      SET student_id = ?, parent_id = ?, therapist_id = ?,
-          time = ?, date = ?, status = ?, type = ?
-      WHERE appointment_id = ?
-    `;
-
-    await db.query(sql, [
-      student_id,
-      parent_id,
-      therapist_id,
-      time,
-      date,
-      status,
-      type,
-      req.params.id
-    ]);
+    const db = await getDbConnection();
+    await db.run(
+      `UPDATE appointments
+         SET student_id   = ?, 
+             parent_id    = ?, 
+             therapist_id = ?, 
+             start_time   = ?, 
+             end_time     = ?, 
+             date         = ?, 
+             status       = ?, 
+             type         = ?
+       WHERE appointment_id = ?`,
+      [
+        student_id,
+        parent_id,
+        therapist_id,
+        start_time,
+        end_time,
+        date,
+        status,
+        type,
+        req.params.id
+      ]
+    );
+    await db.close();
 
     res.json({ message: "Appointment updated successfully" });
   } catch (err) {
+    console.error("Appointment update error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -100,10 +113,15 @@ router.put("/:id", async (req, res) => {
 // Delete an appointment
 router.delete("/:id", async (req, res) => {
   try {
-    const sql = "DELETE FROM appointment WHERE appointment_id = ?";
-    await db.query(sql, [req.params.id]);
+    const db = await getDbConnection();
+    await db.run(
+      "DELETE FROM appointments WHERE appointment_id = ?",
+      [req.params.id]
+    );
+    await db.close();
     res.json({ message: "Appointment deleted successfully" });
   } catch (err) {
+    console.error("Appointment delete error:", err);
     res.status(500).json({ error: err.message });
   }
 });
