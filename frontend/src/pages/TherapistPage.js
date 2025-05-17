@@ -12,7 +12,6 @@ import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import axios from 'axios';
 
-/* ---------- constants ---------- */
 const locales   = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
@@ -20,9 +19,6 @@ const PURPLE    = '#805ad5';
 const LIGHT_BG  = '#faf5ff';
 const DAYS      = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/* ------------------------------------------------------------------ */
-/* TherapistPage */
-/* ------------------------------------------------------------------ */
 export default function TherapistPage({ therapistId }) {
   if (!therapistId) {
     return (
@@ -32,7 +28,6 @@ export default function TherapistPage({ therapistId }) {
     );
   }
 
-  /* ---------- state ---------- */
   const [availability,   setAvailability]   = useState([]);
   const [appointments,   setAppointments]   = useState([]);
   const [pending,        setPending]        = useState([]);
@@ -40,19 +35,15 @@ export default function TherapistPage({ therapistId }) {
   const [view,           setView]           = useState(Views.MONTH);
   const [date,           setDate]           = useState(new Date());
   const [clock,          setClock]          = useState(new Date());
-
-  // weekly rows: { enabled, start, end }
-  const [weekly, setWeekly] = useState(
+  const [weekly,         setWeekly]         = useState(
     DAYS.map(() => ({ enabled: false, start: '', end: '' }))
   );
 
-  /* ---------- timers ---------- */
-  useEffect(() => {
-    const t = setInterval(() => setClock(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  // Modal for appointment info
+  const [modalOpen, setModalOpen]     = useState(false);
+  const [modalAppt, setModalAppt]     = useState(null);
 
-  /* ---------- initial load ---------- */
+  // -- AUTO UPDATE: fetch every 10 seconds for calendar & requests sync --
   useEffect(() => {
     fetchAll();
     axios
@@ -61,6 +52,8 @@ export default function TherapistPage({ therapistId }) {
         setSpecialtyInput((res.data.specialties || []).join(', '))
       )
       .catch(err => console.error('Failed to load specialties:', err));
+    const interval = setInterval(fetchAll, 10000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line
   }, []);
 
@@ -69,14 +62,33 @@ export default function TherapistPage({ therapistId }) {
       .get(`/api/availability?therapist_id=${therapistId}`)
       .then(res => setAvailability(res.data));
     axios
-      .get(`/api/appointments?therapist_id=${therapistId}&status=accepted`)
-      .then(res => setAppointments(res.data));
-    axios
-      .get(`/api/appointments?therapist_id=${therapistId}&status=pending`)
-      .then(res => setPending(res.data));
+      .get(`/api/appointments?therapist_id=${therapistId}`)
+      .then(res => {
+        setAppointments(
+          res.data
+            .filter(a => a.status === 'accepted')
+            .map((a) => ({
+              ...a,
+              title: 'Booked',
+              start: new Date(a.start),
+              end:   new Date(a.end),
+              id: a.id,
+              status: a.status,
+              student_name: a.student_name,
+            }))
+        );
+        setPending(
+          res.data
+            .filter(a => a.status === 'pending')
+            .map((a) => ({
+              ...a,
+              start: new Date(a.start),
+              end:   new Date(a.end),
+            }))
+        );
+      });
   };
 
-  /* ---------- specialties ---------- */
   const saveSpecialties = () => {
     const list = specialtyInput
       .split(',')
@@ -89,7 +101,6 @@ export default function TherapistPage({ therapistId }) {
       .catch(() => alert('Failed to save specialties'));
   };
 
-  /* ---------- weekly UI helpers ---------- */
   const toggleDay = (i) =>
     setWeekly((rows) =>
       rows.map((r, idx) =>
@@ -104,24 +115,23 @@ export default function TherapistPage({ therapistId }) {
       )
     );
 
-  /* ---------- save weekly pattern (parallel OK) ---------- */
   const saveWeeklyPattern = async () => {
-    const active = weekly.filter(
-      (d) => d.enabled && d.start && d.end && d.start < d.end
-    );
+    const active = weekly
+      .map((row, idx) => ({ ...row, dow: idx }))
+      .filter((d) => d.enabled && d.start && d.end && d.start < d.end);
+
     if (active.length === 0) {
       return alert('Pick at least one day with valid times.');
     }
 
     try {
-      const now  = new Date();
-      const base = startOfWeek(now);
+      const base = startOfWeek(new Date());
       const reqs = [];
 
       for (let w = 0; w < 4; w++) {
-        active.forEach(({ start, end }, idx) => {
+        active.forEach(({ dow, start, end }) => {
           const dayDate = addWeeks(base, w);
-          dayDate.setDate(dayDate.getDate() + idx);
+          dayDate.setDate(dayDate.getDate() + dow);
 
           reqs.push(
             axios.post('/api/availability', {
@@ -143,17 +153,39 @@ export default function TherapistPage({ therapistId }) {
     }
   };
 
-  /* ---------- delete slot ---------- */
   const deleteSlot = (slot) =>
     axios
       .delete(`/api/availability/${slot.id}`)
       .then(fetchAll)
       .catch(console.error);
 
-  /* ---------- helper: ensure Date objects ---------- */
+  // Calendar modal logic
   const toDate = (val) => (val instanceof Date ? val : new Date(val));
+  const handleSelectEvent = (evt) => {
+    if (evt.isAvail) {
+      if (window.confirm('Delete this slot?')) deleteSlot(evt);
+    } else {
+      setModalAppt(evt);
+      setModalOpen(true);
+    }
+  };
+  const closeModal = () => {
+    setModalOpen(false);
+    setModalAppt(null);
+  };
+  const cancelAppointment = (id) =>
+    axios
+      .put(`/api/appointments/${id}`, { status: 'cancelled' })
+      .then(() => {
+        fetchAll();
+        closeModal();
+      });
 
-  /* ---------- render ---------- */
+  useEffect(() => {
+    const t = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <div style={styles.pageWrapper}>
       <main style={styles.mainContent}>
@@ -188,16 +220,14 @@ export default function TherapistPage({ therapistId }) {
                 <div>
                   <strong>{req.student_name}</strong>
                   <br />
-                  {format(new Date(req.start), 'MMM d, hh:mm a')} –{' '}
-                  {format(new Date(req.end), 'hh:mm a')}
+                  {format(req.start, 'MMM d, hh:mm a')} –{' '}
+                  {format(req.end, 'hh:mm a')}
                 </div>
                 <div>
                   <button
                     onClick={() =>
                       axios
-                        .put(`/api/appointments/${req.id}`, {
-                          status: 'accepted',
-                        })
+                        .put(`/api/appointments/${req.id}`, { status: 'accepted' })
                         .then(fetchAll)
                     }
                     style={styles.acceptBtn}
@@ -207,9 +237,7 @@ export default function TherapistPage({ therapistId }) {
                   <button
                     onClick={() =>
                       axios
-                        .put(`/api/appointments/${req.id}`, {
-                          status: 'declined',
-                        })
+                        .put(`/api/appointments/${req.id}`, { status: 'declined' })
                         .then(fetchAll)
                     }
                     style={styles.declineBtn}
@@ -270,12 +298,7 @@ export default function TherapistPage({ therapistId }) {
                 start: toDate(s.start ?? `${s.date}T${s.start_time}`),
                 end:   toDate(s.end   ?? `${s.date}T${s.end_time}`),
               })),
-              ...appointments.map((a) => ({
-                ...a,
-                title: 'Booked',
-                start: toDate(a.start),
-                end:   toDate(a.end),
-              })),
+              ...appointments
             ]}
             startAccessor="start"
             endAccessor="end"
@@ -285,14 +308,28 @@ export default function TherapistPage({ therapistId }) {
             date={date}
             onView={setView}
             onNavigate={setDate}
-            onSelectEvent={(evt) =>
-              evt.isAvail &&
-              window.confirm('Delete this slot?') &&
-              deleteSlot(evt)
-            }
+            onSelectEvent={handleSelectEvent}
             views={[Views.MONTH, Views.WEEK, Views.DAY]}
           />
         </section>
+
+        {/* Modal for appointment details/cancel */}
+        {modalOpen && modalAppt && (
+          <div style={styles.modalOverlay} onClick={closeModal}>
+            <div style={styles.modal} onClick={e => e.stopPropagation()}>
+              <h3 style={{ color: PURPLE, marginBottom: 12 }}>Appointment Details</h3>
+              <div><b>Student:</b> {modalAppt.student_name}</div>
+              <div><b>Time:</b> {format(modalAppt.start, 'MMM d, yyyy, hh:mm a')} – {format(modalAppt.end, 'hh:mm a')}</div>
+              <div><b>Status:</b> {modalAppt.status}</div>
+              <div style={{ marginTop: 20 }}>
+                {['pending', 'accepted'].includes(modalAppt.status) && (
+                  <button onClick={() => cancelAppointment(modalAppt.id)} style={styles.declineBtn}>Cancel Appointment</button>
+                )}
+                <button onClick={closeModal} style={styles.acceptBtn}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Link to="/">
           <button style={styles.homeBtn}>🏠 Home</button>
@@ -302,7 +339,6 @@ export default function TherapistPage({ therapistId }) {
   );
 }
 
-/* ---------- styles ---------- */
 const styles = {
   pageWrapper: {
     fontFamily: 'Inter, sans-serif',
@@ -399,5 +435,12 @@ const styles = {
     fontSize: '1rem',
     fontWeight: 600,
     cursor: 'pointer',
+  },
+  modalOverlay: {
+    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+    background: 'rgba(0,0,0,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001,
+  },
+  modal: {
+    background: '#fff', borderRadius: 14, padding: 28, boxShadow: '0 6px 30px rgba(0,0,0,0.13)', minWidth: 320,
   },
 };

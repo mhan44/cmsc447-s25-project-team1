@@ -94,11 +94,12 @@ app.use("/api/auth", authRoutes);
       );
     `);
 
-    /* ---------- appointments ---------- */
+    /* ---------- appointments (with parent_id) ---------- */
     await db.run(`
       CREATE TABLE appointments (
         appointment_id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id     INTEGER NOT NULL,
+        parent_id      INTEGER, -- nullable, only set for parent bookings
         therapist_id   INTEGER NOT NULL,
         start_time     TEXT    NOT NULL,
         end_time       TEXT    NOT NULL,
@@ -106,6 +107,7 @@ app.use("/api/auth", authRoutes);
         status         TEXT    NOT NULL,
         type           TEXT    NOT NULL,
         FOREIGN KEY(student_id)   REFERENCES student_account(student_id),
+        FOREIGN KEY(parent_id)    REFERENCES parent_account(parent_id),
         FOREIGN KEY(therapist_id) REFERENCES therapist_account(therapist_id)
       );
     `);

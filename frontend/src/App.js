@@ -43,7 +43,8 @@ function App() {
         <Route path="/register"        element={<RegisterPage />} />
         <Route path="/verify-email"    element={<VerifyEmailPage />} />
         <Route path="/complete-profile"element={<CompleteProfilePage />} />
-        <Route path="/student"         element={<StudentPage />} />
+        {/* 🟣 FIX: pass studentId as prop */}
+        <Route path="/student"         element={<StudentPage studentId={userId} />} />
         <Route path="/parent"          element={<ParentPage />} />
 
         {/* 🟣  pass the id to TherapistPage */}
