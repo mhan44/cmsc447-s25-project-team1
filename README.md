@@ -1,4 +1,5 @@
 # cmsc447-s25-project-team1 - Therapy Appointment Scheduler for Students with Mental Health Disorders
+https://github.com/mhan44/cmsc447-s25-project-team1
 
 How to run backend:
 1. cd to backend directory
