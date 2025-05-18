@@ -53,6 +53,8 @@ app.use("/api/auth", authRoutes);
         email          TEXT UNIQUE NOT NULL,
         password       TEXT NOT NULL,
         email_verified INTEGER DEFAULT 0,
+        reset_token       TEXT,
+        reset_token_expiry TEXT,
         verify_token   TEXT
       );
     `);
@@ -70,6 +72,8 @@ app.use("/api/auth", authRoutes);
         email          TEXT UNIQUE NOT NULL,
         password       TEXT NOT NULL,
         email_verified INTEGER DEFAULT 0,
+        reset_token       TEXT,
+        reset_token_expiry TEXT,
         verify_token   TEXT
       );
     `);
@@ -90,6 +94,8 @@ app.use("/api/auth", authRoutes);
         verify_token   TEXT,
         admin_id       INTEGER,
         approval_date  TEXT,
+        reset_token       TEXT,
+        reset_token_expiry TEXT,
         FOREIGN KEY(admin_id) REFERENCES admin_account(admin_id)
       );
     `);

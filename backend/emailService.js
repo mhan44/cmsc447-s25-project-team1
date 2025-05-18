@@ -24,6 +24,31 @@ async function sendGenericEmail(toEmail, subject, html) {
   }
 }
 
+async function sendPasswordResetEmail(toEmail, token) {
+  const resetUrl = `${process.env.FRONTEND_BASE_URL}/reset-password?token=${token}`;
+
+  const msg = {
+    to: toEmail,
+    from: process.env.FROM_EMAIL,
+    subject: 'Password Reset Request',
+    html: `
+      <p>You requested a password reset.</p>
+      <p>Click the link below to reset your password:</p>
+      <a href="${resetUrl}">${resetUrl}</a>
+      <p>This link expires in 1 hour.</p>
+    `
+  };
+
+  try {
+    console.log("Sending password reset email to:", msg.to);
+    await sgMail.send(msg);
+    console.log(`Password reset email sent to ${toEmail}`);
+  } catch (err) {
+    console.error("SendGrid Error (Password Reset):", err.response?.body?.errors || err.message);
+    throw new Error("Email send failed");
+  }
+}
+
 module.exports = {
   generateToken() {
     return uuid();
@@ -48,5 +73,6 @@ module.exports = {
       throw new Error("Email send failed");
     }
   },
+  sendPasswordResetEmail,
   sendGenericEmail 
 };

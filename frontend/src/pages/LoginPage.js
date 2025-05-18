@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link} from 'react-router-dom';
 import '../styles/AuthPage.css';
 
 export default function LoginPage({ setIsLoggedIn, setUserType }) {
@@ -86,6 +86,10 @@ export default function LoginPage({ setIsLoggedIn, setUserType }) {
       </form>
       <div className="toggle-link">
         New here? <Link to="/register">Sign up</Link>
+      </div>
+
+      <div className="toggle-link">
+        <Link to="/forgot-password">Forgot your password?</Link>
       </div>
     </div>
   );

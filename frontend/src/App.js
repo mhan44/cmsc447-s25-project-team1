@@ -10,6 +10,8 @@ import CompleteProfilePage from './pages/CompleteProfilePage';
 import StudentPage from './pages/StudentPage';
 import ParentPage from './pages/ParentPage';
 import TherapistPage from './pages/TherapistPage';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -46,6 +48,8 @@ function App() {
         {/* 🟣 FIX: pass studentId as prop */}
         <Route path="/student"         element={<StudentPage studentId={userId} />} />
         <Route path="/parent"          element={<ParentPage />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* 🟣  pass the id to TherapistPage */}
         <Route

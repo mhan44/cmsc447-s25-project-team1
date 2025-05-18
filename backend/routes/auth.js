@@ -6,7 +6,10 @@ const router  = express.Router();
 const { getDbConnection } = require('../db');
 const { v4: uuid } = require('uuid');
 const { sendVerificationEmail } = require('../emailService');
+const { sendPasswordResetEmail } = require('../emailService');
 const bcrypt = require("bcrypt"); //hashing
+const crypto = require('crypto');
+
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -175,6 +178,61 @@ router.post('/resend-verify', async (req, res) => {
   } catch (err) {
     console.error('❌ resend-verify: unexpected error:', err);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+//POST api/auth/forgot-password
+router.post("/forgot-password", async (req, res) => {
+  const { email, role } = req.body;
+  const table = `${role}_account`;
+
+  try {
+    const db = await getDbConnection();
+    const user = await db.get(`SELECT * FROM ${table} WHERE email = ?`, [email]);
+    if (!user) return res.status(404).json({ error: "Email not found." });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiry = new Date(Date.now() + 60 * 60 * 1000).toISOString(); //1 hour
+
+    await db.run(
+      `UPDATE ${table} SET reset_token = ?, reset_token_expiry = ? WHERE email = ?`,
+      [token, expiry, email]
+    );
+    await db.close();
+
+    await sendPasswordResetEmail(email, token);
+    res.json({ message: "Reset link sent to your email." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
+//POST api/auth/reset-password
+router.post("/reset-password", async (req, res) => {
+  const { role, token, newPassword } = req.body;
+  const table = `${role}_account`;
+
+  try {
+    const db = await getDbConnection();
+    const user = await db.get(`SELECT * FROM ${table} WHERE reset_token = ?`, [token]);
+
+    if (!user || new Date(user.reset_token_expiry) < new Date()) {
+      return res.status(400).json({ error: "Invalid or expired token." });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await db.run(
+      `UPDATE ${table} SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE email = ?`,
+      [hashedPassword, user.email]
+    );
+    await db.close();
+
+    res.json({ message: "Password has been reset." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error." });
   }
 });
 
