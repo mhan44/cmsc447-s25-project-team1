@@ -2,16 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
-import StudentsPage from './pages/StudentPage';
+// import StudentsPage from './pages/StudentPage'; // This seems duplicated below
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import CompleteProfilePage from './pages/CompleteProfilePage';
-import StudentPage from './pages/StudentPage';
+import StudentPage from './pages/StudentPage'; // Corrected import
 import ParentPage from './pages/ParentPage';
 import TherapistPage from './pages/TherapistPage';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+// --- IMPORT ADMIN PAGE ---
+import AdminPage from './pages/AdminPage'; // Assuming AdminPage.js is in the pages directory
+// --- END IMPORT ADMIN PAGE ---
+
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -41,12 +45,12 @@ function App() {
 
       <Routes>
         <Route path="/"                element={<HomePage />} />
-        <Route path="/students"        element={<StudentsPage />} />
+        {/* Removed duplicated StudentsPage import and route */}
         <Route path="/register"        element={<RegisterPage />} />
         <Route path="/verify-email"    element={<VerifyEmailPage />} />
         <Route path="/complete-profile"element={<CompleteProfilePage />} />
         {/* 🟣 FIX: pass studentId as prop */}
-        <Route path="/student"         element={<StudentPage studentId={userId} />} />
+        <Route path="/student"         element={<StudentPage studentId={userId} />} /> {/* Corrected to use imported StudentPage */}
         <Route path="/parent"          element={<ParentPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
@@ -66,6 +70,12 @@ function App() {
             />
           }
         />
+
+        {/* --- ADD ADMIN ROUTE --- */}
+        {/* Define the route for the /admin path */}
+        <Route path="/admin" element={<AdminPage />} />
+        {/* --- END ADD ADMIN ROUTE --- */}
+
       </Routes>
     </Router>
   );

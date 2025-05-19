@@ -7,7 +7,7 @@ const { sendVerificationEmail } = require("../emailService");
 const router = express.Router();
 const bcrypt = require("bcrypt"); // password hashing
 
-// Create a student (registration)
+// Create a student (registration) - Existing route
 router.post("/", async (req, res) => {
   console.log("Register request received:", req.body);
   try {
@@ -40,18 +40,18 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Update a student’s profile post-verification
+// Update a student’s profile post-verification - Existing route
 router.put("/:id", async (req, res) => {
   try {
     const { first_name, last_name, phone_number, age, address, zip_code } = req.body;
     const db = await getDbConnection();
     await db.run(
       `UPDATE student_account
-         SET first_name   = ?, 
-             last_name    = ?, 
-             phone_number = ?, 
-             age          = ?, 
-             address      = ?, 
+         SET first_name   = ?,
+             last_name    = ?,
+             phone_number = ?,
+             age          = ?,
+             address      = ?,
              zip_code     = ?
        WHERE student_id = ?`,
       [first_name, last_name, phone_number, age, address, zip_code, req.params.id]
@@ -63,5 +63,27 @@ router.put("/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// --- ADDED GET ALL STUDENTS ROUTE ---
+// This route is needed by the AdminPage to list all students
+router.get("/", async (_req, res) => {
+  try {
+    const db = await getDbConnection();
+    const students = await db.all(`
+      SELECT student_id,
+             first_name || ' ' || last_name AS name, -- Concatenate first and last name
+             email,
+             phone_number, age, address, zip_code
+      FROM student_account
+    `);
+    await db.close();
+    res.json(students); // Send the list of students as JSON
+  } catch (err) {
+    console.error("Fetch students error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+// --- END ADDED GET ALL STUDENTS ROUTE ---
+
 
 module.exports = router;
